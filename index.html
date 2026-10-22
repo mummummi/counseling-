@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>학급 상담 신청 키오스크</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- QRCode JS Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body {
@@ -32,6 +36,7 @@
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col justify-between overflow-hidden">
 
+    <!-- Header Section -->
     <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center z-10">
         <div class="flex items-center space-x-3">
             <div class="bg-white text-indigo-600 p-2.5 rounded-2xl shadow">
@@ -59,6 +64,7 @@
         </div>
     </header>
 
+    <!-- Main Content Container -->
     <main class="flex-1 flex items-center justify-center p-4 max-w-4xl w-full mx-auto relative">
 
         <!-- STEP 1: Student Number Input -->
@@ -260,21 +266,20 @@
             </div>
 
             <div class="space-y-4">
+                <!-- Webhook / Google Sheets URL Setting -->
                 <div class="bg-indigo-50/60 p-4 rounded-2xl border border-indigo-100">
                     <label class="block text-xs font-bold text-indigo-900 mb-1">
-                        📱 웹앱 공개 주소 (QR코드 생성용):
-                    </label>
-                    <input type="url" id="webAppUrl" placeholder="예: https://my-school.github.io/counsel" class="w-full p-2.5 text-xs border rounded-xl focus:outline-none focus:border-indigo-500 font-mono text-slate-600 bg-white">
-                    <p class="text-[11px] text-indigo-700/80 mt-1">※ 이 웹앱을 배포한 URL 주소를 입력하면 학생 휴대폰용 QR 코드가 자동으로 생성됩니다.</p>
-                </div>
-
-                <!-- Webhook / Google Sheets URL Setting -->
-                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">
                         Google Sheet (Apps Script) 웹 앱 URL:
                     </label>
-                    <input type="url" id="sheetApiUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 text-xs border rounded-xl focus:outline-none focus:border-indigo-500 font-mono text-slate-600">
-                    <p class="text-[11px] text-slate-400 mt-1">※ 구글 시트 배포 후 얻은 웹 앱 URL을 입력하면 실시간으로 연동됩니다.</p>
+                    <input type="url" id="sheetApiUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 text-xs border rounded-xl focus:outline-none focus:border-indigo-500 font-mono text-slate-600 bg-white">
+                    <p class="text-[11px] text-indigo-700/80 mt-1">※ 구글 시트 배포 후 얻은 웹 앱 URL을 입력하면 실시간으로 연동됩니다.</p>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
+                        📱 웹앱 공개 주소 (QR코드 수동 지정용):
+                    </label>
+                    <input type="url" id="webAppUrl" placeholder="비워두면 현재 접속된 깃허브 주소가 자동 반영됩니다." class="w-full p-2.5 text-xs border rounded-xl focus:outline-none focus:border-indigo-500 font-mono text-slate-600 bg-white">
                 </div>
 
                 <!-- Local Backup Log Data -->
@@ -327,7 +332,13 @@
         </div>
     </div>
 
+    <!-- JavaScript Logic -->
     <script>
+        // ★★★ [선생님 전용 설정] ★★★
+        // 아래 큰따옴표("") 안에 선생님의 구글 시트 웹앱 URL을 붙여넣어주세요!
+        // 예시: const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycb.../exec";
+        const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycbyFt6kzlYKbFSF2ydCKRKMP2Dc5uPIuzArtSqCbAaTcx7pOEGa2WPgsUlvzgsrjLJNg/exec"; 
+
         // App State Variables
         let currentStudentNum = '';
         let selectedCategory = '';
@@ -338,9 +349,19 @@
 
         // Initialize App on Page Load
         window.onload = function() {
-            const savedUrl = localStorage.getItem('counsel_sheet_url');
+            // 1. Check URL parameters if accessed via QR code (Auto-configure sheet URL for mobile)
+            const urlParams = new URLSearchParams(window.location.search);
+            const sheetUrlFromParam = urlParams.get('sheet');
+            
+            if (sheetUrlFromParam) {
+                localStorage.setItem('counsel_sheet_url', decodeURIComponent(sheetUrlFromParam));
+            }
+
+            // 2. Load configured Google Sheet URL or fallback to DEFAULT_SHEET_URL
+            const savedUrl = localStorage.getItem('counsel_sheet_url') || DEFAULT_SHEET_URL;
             if (savedUrl) {
                 document.getElementById('sheetApiUrl').value = savedUrl;
+                localStorage.setItem('counsel_sheet_url', savedUrl);
             }
 
             const savedAppUrl = localStorage.getItem('counsel_app_url');
@@ -359,8 +380,17 @@
             renderLocalLogs();
         };
 
+        // Open QR Modal and auto-embed current Sheet URL into QR
         function openQrModal() {
-            const targetUrl = localStorage.getItem('counsel_app_url') || window.location.href;
+            const currentSheetUrl = localStorage.getItem('counsel_sheet_url') || DEFAULT_SHEET_URL;
+            let baseUrl = document.getElementById('webAppUrl').value.trim() || window.location.href.split('?')[0];
+            
+            // Append Google Sheet URL as parameter so scanned phone inherits the sheet connection!
+            let targetUrl = baseUrl;
+            if (currentSheetUrl) {
+                const separator = baseUrl.includes('?') ? '&' : '?';
+                targetUrl = `${baseUrl}${separator}sheet=${encodeURIComponent(currentSheetUrl)}`;
+            }
             
             const qrContainer = document.getElementById('qrcode');
             qrContainer.innerHTML = ''; // Clear previous QR
@@ -371,7 +401,7 @@
                 height: 180,
                 colorDark : "#1e293b",
                 colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
+                correctLevel : QRCode.CorrectLevel.M
             });
 
             document.getElementById('qrModal').classList.remove('hidden');
@@ -469,7 +499,7 @@
             document.getElementById('step2').classList.add('flex');
         }
 
-        // Enhanced Data Submission to Google Sheets
+        // Data Submission Handler
         async function submitApplication(isSkipped = false) {
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
@@ -493,13 +523,13 @@
                 note: noteText
             };
 
-            // 1. Save locally as immediate backup
+            // 1. Save locally
             localLogs.unshift(record);
             localStorage.setItem('counsel_logs', JSON.stringify(localLogs));
             renderLocalLogs();
 
-            // 2. Send to Google Sheets API if URL configured
-            const apiUrl = localStorage.getItem('counsel_sheet_url');
+            // 2. Send to Google Sheets API
+            const apiUrl = localStorage.getItem('counsel_sheet_url') || DEFAULT_SHEET_URL;
             if (apiUrl) {
                 try {
                     await fetch(apiUrl, {
@@ -512,7 +542,6 @@
                     });
                 } catch (error) {
                     console.error('Primary POST Request Failed, attempting GET Fallback:', error);
-                    
                     try {
                         const params = new URLSearchParams(record).toString();
                         await fetch(`${apiUrl}?${params}`, {
@@ -525,7 +554,7 @@
                 }
             }
 
-            // Render Final Step (Step 4)
+            // Render Step 4
             document.getElementById('step3').classList.add('hidden');
             document.getElementById('step3').classList.remove('flex');
             
